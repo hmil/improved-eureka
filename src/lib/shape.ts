@@ -1,3 +1,13 @@
+import {
+    DrawFunc,
+    EventHandler,
+    EventTypes,
+    ShapeAnimation,
+    ShapeBuilder,
+    ShapeInstance,
+    ShapeTransition,
+    StateFunction,
+} from './dsl/shape-builder';
 
 function noop() { }
 function identity<T>(i: T) { return i; }
@@ -7,145 +17,67 @@ const DEFAULT_STATE = {
     ':end': identity,
 };
 
-type DefaultAttrs = {
-    strokeStyle?: string | null;
-    fillStyle?: string | null;
-    globalAlpha?: number;
-}
-
-type DrawFunc<Attrs> = (ctx: CanvasRenderingContext2D, attrs: Attrs) => void;
-type StateFunction<Attrs> = (attrs: Attrs/*, scene: Scene*/) => Partial<Attrs>;
-
-class Shape<
+export class ShapeImpl<
         Type extends string = never,
-        Attrs extends DefaultAttrs = DefaultAttrs,
+        Attrs extends {} = {},
         States extends string = 'default' | ':begin' | ':end'> implements ShapeBuilder<Type, Attrs, States> {
 
-    public static create<T extends string>(type: T): Shape<T> {
-        return new Shape(type, noop, {}, DEFAULT_STATE, [], []);
+    public static create<T extends string>(type: T): ShapeImpl<T> {
+        return new ShapeImpl(type, noop, {}, DEFAULT_STATE, [], [], []);
     }
 
     private constructor(
-            public readonly _type: Type,
-            private readonly _drawFunc: DrawFunc<Attrs>,
+            public readonly type: Type,
+            /** @internal */
+            public readonly _drawFunc: DrawFunc<Attrs>,
             /** @internal */
             public readonly _attrs: Attrs,
             /* @internal */
             public readonly _states: { [k in States]: StateFunction<Attrs> },
             /* @internal */
-            public readonly _transitions: ReadonlyArray<ShapeTransition<States>>,
+            public readonly _transitions: ReadonlyArray<ShapeTransition<States, Attrs>>,
             /* @internal */
-            public readonly _listeners: ReadonlyArray<{ event: string, handler: EventHandler<Shape<Type, Attrs, States>> }>
+            public readonly _animations: ReadonlyArray<ShapeAnimation<Type, States, Attrs>>,
+            /* @internal */
+            public readonly _listeners: ReadonlyArray<{ event: string, handler: EventHandler<Type, Attrs> }>
     ) { }
 
-    attrs<T extends {}>(attrs: T): Shape<Type, Attrs & T, States> {
-        return new Shape(
-            this._type,
+    attrs<T extends {}>(attrs: T): ShapeImpl<Type, Attrs & T, States> {
+        return new ShapeImpl(
+            this.type,
             this._drawFunc as DrawFunc<Attrs & T>,
             {...this._attrs, ...attrs },
             this._states as { [k in States]: StateFunction<Attrs & T> },
-            this._transitions,
-            this._listeners as ReadonlyArray<{ event: string, handler: EventHandler<Shape<Type, Attrs & T, States>> }>);
+            this._transitions as ReadonlyArray<ShapeTransition<States, Attrs & T>>,
+            this._animations as ReadonlyArray<ShapeAnimation<Type, States, Attrs & T>>,
+            this._listeners as ReadonlyArray<{ event: string, handler: EventHandler<Type, Attrs> }>);
     }
 
-    draw(drawFunc: DrawFunc<Attrs>): Shape<Type, Attrs, States> {
-        return new Shape(this._type, drawFunc, this._attrs, this._states, this._transitions, this._listeners);
+    draw(drawFunc: DrawFunc<Attrs>): ShapeImpl<Type, Attrs, States> {
+        return new ShapeImpl(this.type, drawFunc, this._attrs, this._states, this._transitions, this._animations, this._listeners);
     }
 
-    state<S extends string>(state: S, modification: StateFunction<Attrs>): Shape<Type, Attrs, States | S>;
-    state<S extends string>(state: S, modification: Attrs): Shape<Type, Attrs, States | S>;
-    state<S extends string>(state: S, modification: Attrs | StateFunction<Attrs>): Shape<Type, Attrs, States | S> {
-        return new Shape(this._type, this._drawFunc, this._attrs,
-            {...this._states, [state]: modification } as { [k in States | S]: StateFunction<Attrs> },
-            this._transitions as ReadonlyArray<ShapeTransition<States | S>>,
+    state<S extends string>(state: S, modification: StateFunction<Attrs>): ShapeImpl<Type, Attrs, States | S>;
+    state<S extends string>(state: S, modification: Attrs): ShapeImpl<Type, Attrs, States | S>;
+    state<S extends string>(state: S, modification: Attrs | StateFunction<Attrs>): ShapeImpl<Type, Attrs, States | S> {
+        const modifFn = typeof modification === 'function' ? modification : () => modification;
+        return new ShapeImpl(this.type, this._drawFunc, this._attrs,
+            {...this._states, [state]: modifFn } as { [k in States | S]: StateFunction<Attrs> },
+            this._transitions as ReadonlyArray<ShapeTransition<States | S, Attrs>>,
+            this._animations,
             this._listeners);
     }
 
-    transition(desc: ShapeTransition<States>): Shape<Type, Attrs, States> {
-        return new Shape(this._type, this._drawFunc, this._attrs, this._states, [...this._transitions, desc], this._listeners);
+    transition(desc: ShapeTransition<States, Attrs>): ShapeImpl<Type, Attrs, States> {
+        return new ShapeImpl(this.type, this._drawFunc, this._attrs, this._states, [...this._transitions, desc], this._animations, this._listeners);
     }
 
-    animation(desc: ShapeAnimation<States, Attrs>): Shape<Type, Attrs, States> {
-        return this; // TODO
+    animation(desc: ShapeAnimation<Type, States, Attrs>): ShapeImpl<Type, Attrs, States> {
+        return new ShapeImpl(this.type, this._drawFunc, this._attrs, this._states, this._transitions, [...this._animations, desc], this._listeners);
     }
 
-    on(event: EventTypes, handler: EventHandler<this>): Shape<Type, Attrs, States> {
-        return new Shape(this._type, this._drawFunc, this._attrs, this._states, this._transitions,
+    on(event: EventTypes, handler: EventHandler<Type, Attrs>): ShapeImpl<Type, Attrs, States> {
+        return new ShapeImpl(this.type, this._drawFunc, this._attrs, this._states, this._transitions, this._animations,
                 [...this._listeners, { event, handler }]);
     }
-
-    render(renderFunction: (ctx: CanvasRenderingContext2D, inst: ShapeInstance<this>) => void): ShapeBuilder<Type, Attrs, States> {
-        return this; // TODO
-    }
-
-    renderHit(renderFunction: (ctx: CanvasRenderingContext2D, inst: ShapeInstance<this>) => void): ShapeBuilder<Type, Attrs, States> {
-        return this; // TODO
-    }
-
-    drawPath(renderFunction: (ctx: PathRenderingContext, inst: ShapeInstance<this>) => void): ShapeBuilder<Type, Attrs, States> {
-        return this; // TODO
-    }
-
-    /* @internal */
-    public _draw(ctx: CanvasRenderingContext2D, overrides: Attrs): void {
-        return this._drawFunc(ctx, overrides);
-    }
 }
-
-type PathRenderingContext = Pick<CanvasRenderingContext2D, 'arc' | 'arcTo' | 'beginPath' | 'bezierCurveTo' | 'closePath' | 'lineTo' | 'moveTo'>; // TODO: complete this list
-
-export interface ShapeBuilder<
-        Type extends string = never,
-        Attrs extends DefaultAttrs = DefaultAttrs,
-        States extends string = 'default' | ':begin' | ':end'> {
-
-    attrs<T extends {}>(attrs: T): ShapeBuilder<Type, Attrs & T, States>;
-
-    state<S extends string>(state: S, modification: StateFunction<Attrs>): ShapeBuilder<Type, Attrs, States | S>;
-    state<S extends string>(state: S, attrs: Partial<Attrs>): ShapeBuilder<Type, Attrs, States | S>;
-
-    transition(desc: ShapeTransition<States>): ShapeBuilder<Type, Attrs, States>;
-
-    animation(desc: ShapeAnimation<States, Attrs>): ShapeBuilder<Type, Attrs, States>;
-
-    on(event: EventTypes, handler: EventHandler<this>): ShapeBuilder<Type, Attrs, States>;
-
-    render(renderFunction: (ctx: CanvasRenderingContext2D, inst: ShapeInstance<this>) => void): ShapeBuilder<Type, Attrs, States>;
-
-    renderHit(renderFunction: (ctx: CanvasRenderingContext2D, inst: ShapeInstance<this>) => void): ShapeBuilder<Type, Attrs, States>;
-
-    drawPath(renderFunction: (ctx: PathRenderingContext, inst: ShapeInstance<this>) => void): ShapeBuilder<Type, Attrs, States>;
-}
-
-export type ShapeBuilder2<
-        Builder extends ShapeBuilder2<any, any, any>,
-        Instance extends any,
-        Attrs extends DefaultAttrs> =
-    {
-        attrs<T extends {}>(attrs: T): ShapeBuilder2<Builder, Instance, Attrs & T>;
-    } & Builder;
-
-interface ShapeInstance<Builder> {
-    id: string;
-    klass: Builder;
-    type: Builder extends ShapeBuilder<infer Type, any, any> ? Type : never;
-    attrs: Builder extends ShapeBuilder<any, infer Attrs, any> ? Attrs : never;
-}
-
-export type { Shape };
-export const createShape = <T extends string>(type: T): ShapeBuilder<T> => Shape.create(type);
-
-interface ShapeAnimation<States extends string, Attrs extends DefaultAttrs> {
-    states: States | ReadonlyArray<States>;
-    animate: (time: number) => Partial<Attrs>;
-}
-
-interface ShapeTransition<States extends string> {
-    from?: States;
-    to?: States;
-    duration?: number;
-}
-
-type EventTypes = 'mouseenter' | 'mouseleave' | 'click';
-
-type EventHandler<Builder> = (evt: { target: ShapeInstance<Builder> }) => void;

@@ -1,2 +1,3 @@
-export * from './shape';
-export * from './shapes';
+export * from './factories';
+export * from './dsl/scene-builder';
+export * from './dsl/shape-builder';

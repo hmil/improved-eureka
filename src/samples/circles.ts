@@ -1,4 +1,12 @@
-import { scene, SceneData, ShapeData, createCircle, createForm, createSprite } from "lib";
+import { SceneData, ShapeData, createCircle, createScene, createShape } from "lib";
+import { EASINGS } from "lib/engine/easings";
+
+function randHexByte() {
+    return `0${(Math.random() * 0x100).toString(16)}`.substr(-2);
+}
+function randomColor() {
+    return `#${randHexByte()}${randHexByte()}${randHexByte()}`;
+}
 
 export function runCirclesSample() {
     const width = 800;
@@ -18,38 +26,77 @@ export function runCirclesSample() {
             id: randomId(),
             type: 'node',
             state: 'default',
-            attrs: { x: Math.round(Math.random() * width) , y: Math.round(Math.random() * height), initialRadius: Math.random() * 10 + 10 }
+            attrs: { x: Math.round(Math.random() * width), y: Math.round(Math.random() * height), initialRadius: Math.random() * 10 + 10, color: randomColor() }
         };
     }
 
-    const node = createCircle('node')
+    const container = document.getElementById('canvas')!;
+
+    const node = createShape('node')
         .attrs({
-            stroke: '#000',
-            strokeWidth: 3,
-            initialRadius: 0
+            x: 0,
+            y: 0,
+            radius: 10,
+            color: '#000',
+            fillColor: 'transparent',
+            borderWidth: 1,
+            lineDashOffset: 0, // radians
+            dashFraction: 1,
+            dashLength: 2 * Math.PI / 10 // radians
+        })
+        .draw((ctx, attrs) => { // TODO: Maybe expose only attrs and not full instance for simpler API
+            ctx.strokeStyle = attrs.color;
+            ctx.fillStyle = attrs.fillColor;
+            ctx.lineWidth = attrs.borderWidth;
+            if (attrs.dashLength != 0 && attrs.dashFraction != 1) {
+                ctx.setLineDash([attrs.dashFraction * attrs.dashLength * attrs.radius, (1 - attrs.dashFraction) * attrs.dashLength * attrs.radius]);
+                ctx.lineDashOffset = (attrs.lineDashOffset + attrs.dashLength * attrs.dashFraction / 2) * attrs.radius;
+            }
+            ctx.moveTo(attrs.x, attrs.y + attrs.radius);
+            ctx.beginPath();
+            ctx.arc(attrs.x, attrs.y, attrs.radius, 0, Math.PI * 2, false);
+            ctx.closePath();
+            ctx.stroke();
+            ctx.fill();
+        })
+        .attrs({
+            initialRadius: 0,
+            color: '#000',
+            borderWidth: 3,
+            foobar: 2
         })
         .state(':begin', {
-            radius: 0
+            radius: 1,
         })
         .state(':end', (attrs) => ({
             radius: attrs.initialRadius * 5,
-            opacity: 0
+            dashFraction: 0,
         }))
         .state('default', (attrs) => ({
-            radius: attrs.initialRadius
+            radius: attrs.initialRadius,
+            dashFraction: 1,
         }))
         .state('hover', (attrs) => ({
-            radius: attrs.initialRadius * 1.2
+            borderWidth: 3,
+            radius: attrs.initialRadius * 1.2,
+            dashFraction: 0.7,
         }))
+        .animation({
+            states: ['hover', 'default'],
+            animate: (time) => ({
+                lineDashOffset: time * 2 * Math.PI / 10
+            })
+        })
         .animation({
             states: ['default'],
             animate: (time) => ({
-                globalAlpha: Math.sin(time)
+                borderWidth: Math.sin(time * 2 * Math.PI) * 2 + 3
             })
         })
         .transition({
             from: ':begin',
             duration: 1,
+            easing: EASINGS.easeOut
         })
         // .transition({
         //     from: 'hover',
@@ -57,15 +104,33 @@ export function runCirclesSample() {
         //     properties: [ 'radius' ],
         // })
         .transition({
-            duration: 0.2
+            duration: 0.3,
+            exclude: [ 'lineDashOffset' ],
+            easing: EASINGS.easeInOut
+        })
+        .transition({
+            from: 'hover',
+            to: 'default',
+            duration: 0.2,
+            exclude: [ 'lineDashOffset' ],
+            easing: EASINGS.easeInOut
+        })
+        .transition({
+            to: ':end',
+            duration: 0.4,
+            easing: EASINGS.easeOut
         })
         .on('mouseenter', (evt) => {
-            sceneData.data.find(e => e.id === evt.target.id).state = 'hover';
+            container.style.cursor = 'pointer';
+            sceneData.data.find(e => e.id === evt.target.id)!.state = 'hover';
             myScene.draw(sceneData);
         })
         .on('mouseleave', (evt) => {
-            console.log('leave');
-            sceneData.data.find(e => e.id === evt.target.id).state = 'default';
+            container.style.cursor = 'default';
+            const elem = sceneData.data.find(e => e.id === evt.target.id);
+            if (elem != null) {
+                elem.state = 'default';
+            }
             myScene.draw(sceneData);
         })
         .on('click', (evt) => {
@@ -75,9 +140,10 @@ export function runCirclesSample() {
             myScene.draw(sceneData);
         });
     
-    const myScene = scene({ width, height })
-        .withShape(node)
-        .attachTo(document.getElementById('canvas'));
+    const myScene = createScene()
+        .size(width, height)
+        .addShape(node)
+        .attachTo(container);
     
     myScene.draw(sceneData);
 }

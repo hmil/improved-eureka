@@ -6,6 +6,10 @@
         "module": "es6",
         "moduleResolution": "node",
         "downlevelIteration": true,
+        "lib": [
+            "ES2015",
+            "DOM"
+        ],
         "strict": true,
         "target": "es5",
         "baseUrl": "src"

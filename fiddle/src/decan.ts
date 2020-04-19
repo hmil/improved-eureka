@@ -110,7 +110,6 @@ type Filter<S extends AnyShape, Type extends string> = S['_type'] extends Type ?
 
 class Scene<Shapes extends AnyShape = never> {
 
-
     private shapes: Map<string, {shape: Konva.Shape, data: ShapeData<any>}> = new Map();
 
     public get(id: string) {
