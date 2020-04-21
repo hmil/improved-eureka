@@ -64,12 +64,9 @@ export class Instance<Type extends string = string, Attrs = unknown, States exte
                 } else {
                     newAnimations.push({
                         anim: this.animations.animate((time) => {
-                            this._targetAttrs = {
-                                ...this._targetAttrs,
-                                ...currentAnim.animate(time / 1000, this)
-                            };
+                            Object.assign(this._targetAttrs, currentAnim.animate(time / 1000, this));
                             if (this.currentTween == null) {
-                                this._attrs = { ...this._attrs, ...this._targetAttrs };
+                                Object.assign(this._attrs, this._targetAttrs);
                             }
                         }, -1),
                         definition: currentAnim
@@ -163,18 +160,19 @@ export class Instance<Type extends string = string, Attrs = unknown, States exte
     }
 
     private dirtyTween(from: any, to: any, progress: number): any {
-        const ret: any = {...to};
-        for (const attr of Object.keys(from)) {
+        for (const attr of Object.keys(to)) {
             const toAttr = to[attr];
             if (toAttr == null) {
                 continue;
             }
             const fromAttr = from[attr];
             if (typeof fromAttr === 'number') {
-                ret[attr] = fromAttr + (toAttr - fromAttr) * progress;
+                (this._attrs as any)[attr] = fromAttr + (toAttr - fromAttr) * progress;
+            } else {
+                (this._attrs as any)[attr] = toAttr;
             }
         }
-        return ret;
+        return this._attrs;
     }
     
     private computeAttributeSnapshot(state: States, incoming: Partial<Attrs>): Attrs {

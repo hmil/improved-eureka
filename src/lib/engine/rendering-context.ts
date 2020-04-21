@@ -187,8 +187,16 @@ export class DecanRenderingContext implements CanvasRenderingContext2D {
     fill(fillRule?: "evenodd" | "nonzero" | undefined): void;
     fill(path: Path2D, fillRule?: "evenodd" | "nonzero" | undefined): void;
     fill(path?: any, fillRule?: any) {
-        this.ctx.fill(...arguments);
-        this.hitCtx.fill(...arguments);
+        if (path == null) {
+            this.ctx.fill();
+            this.hitCtx.fill();
+        } else if (fillRule == null) {
+            this.ctx.fill(path);
+            this.hitCtx.fill(path);
+        } else {
+            this.ctx.fill(path, fillRule);
+            this.hitCtx.fill(path, fillRule);
+        }
     }
     isPointInPath(x: number, y: number, fillRule?: "evenodd" | "nonzero" | undefined): boolean;
     isPointInPath(path: Path2D, x: number, y: number, fillRule?: "evenodd" | "nonzero" | undefined): boolean;

@@ -12,7 +12,8 @@
         ],
         "strict": true,
         "target": "es5",
-        "baseUrl": "src"
+        "baseUrl": "src",
+        "importHelpers": true
     },
     "include": [
         "src/**/*.ts"

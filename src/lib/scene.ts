@@ -8,10 +8,13 @@ import { SceneContext } from './engine/scene-context';
 import { EventsManager } from './engine/events-manager';
 import { AnimationManager, AnimationListener } from './engine/animation-manager';
 
-const hitColorGenerator = (() => {
-    let i = 1;
-    return () => '#' + `00000${(i++).toString(16)}`.substr(-6);
-})();
+function getRandomColor() {
+    var randomColor = ((Math.random() * 0xffffff) << 0).toString(16);
+    while (randomColor.length < 6) {
+        randomColor = '0' + randomColor;
+    }
+    return `#${randomColor}`;
+}
 
 const W3C_DEFAULT_CANVAS_SIZE: Size = { width: 300, height: 150 };
 
@@ -32,7 +35,7 @@ export class Scene<Shapes extends ShapeBuilder = never> implements SceneBuilder<
     public width: number;
     public height: number;
     public readonly hitMap = new Map<string, Instance<any, any>>();
-    private readonly renderer = new Renderer(this);
+    private readonly renderer: Renderer;
     private readonly eventsManager = new EventsManager(this);
     private readonly animationManager = new AnimationManager(this);
 
@@ -43,6 +46,7 @@ export class Scene<Shapes extends ShapeBuilder = never> implements SceneBuilder<
         this.height = _dim.height;
         this.canvas = new Canvas(_dim.width, _dim.height);
         this.hitCanvas = new Canvas(_dim.width, _dim.height);
+        this.renderer = new Renderer(this);
         this.eventsManager.init();
     }
 
@@ -92,7 +96,7 @@ export class Scene<Shapes extends ShapeBuilder = never> implements SceneBuilder<
                 instances.set(d.id, previous);
             } else {
                 // Create new shape
-                const instance = new Instance(this.animationManager, d.state || 'default', shape, d.id, d.type, hitColorGenerator(), d.attrs);
+                const instance = new Instance(this.animationManager, d.state || 'default', shape, d.id, d.type, this.generateHitColor(), d.attrs);
                 instances.set(d.id, instance);
                 this.hitMap.set(instance.hitColor, instance)
             }
@@ -112,8 +116,17 @@ export class Scene<Shapes extends ShapeBuilder = never> implements SceneBuilder<
         this.render();
     }
 
+    private generateHitColor() {
+        while (true) {
+            const color = getRandomColor();
+            if (!this.hitMap.has(color)) {
+                return color;
+            }
+        }
+    }
+
     private render() {
-        this.renderer.render(Array.from(this.instances.values()));
+        this.renderer.render(this.instances.values());
         this.eventsManager.flushEvents();
     }
 

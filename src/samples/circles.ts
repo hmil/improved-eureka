@@ -21,6 +21,16 @@ export function runCirclesSample() {
         data: [createRandomCircle()]
     };
 
+    // let created = 0;
+    // function addCircle() {
+    //     sceneData.data.push(createRandomCircle());
+    //     myScene.draw(sceneData);
+    //     if (created++ < 200) {
+    //         setTimeout(addCircle, 1);
+    //     }
+    // }
+    // setTimeout(addCircle, 1);
+
     function createRandomCircle(): ShapeData<typeof node> {
         return {
             id: randomId(),
@@ -32,6 +42,7 @@ export function runCirclesSample() {
 
     const container = document.getElementById('canvas')!;
 
+    const lineDashArray = [0, 0];
     const node = createShape('node')
         .attrs({
             x: 0,
@@ -45,16 +56,20 @@ export function runCirclesSample() {
             dashLength: 2 * Math.PI / 10 // radians
         })
         .draw((ctx, attrs) => { // TODO: Maybe expose only attrs and not full instance for simpler API
+            const x = Math.round(attrs.x);
+            const y = Math.round(attrs.y);
             ctx.strokeStyle = attrs.color;
             ctx.fillStyle = attrs.fillColor;
             ctx.lineWidth = attrs.borderWidth;
             if (attrs.dashLength != 0 && attrs.dashFraction != 1) {
-                ctx.setLineDash([attrs.dashFraction * attrs.dashLength * attrs.radius, (1 - attrs.dashFraction) * attrs.dashLength * attrs.radius]);
+                lineDashArray[0] = attrs.dashFraction * attrs.dashLength * attrs.radius;
+                lineDashArray[1] = (1 - attrs.dashFraction) * attrs.dashLength * attrs.radius;
+                ctx.setLineDash(lineDashArray);
                 ctx.lineDashOffset = (attrs.lineDashOffset + attrs.dashLength * attrs.dashFraction / 2) * attrs.radius;
             }
-            ctx.moveTo(attrs.x, attrs.y + attrs.radius);
+            ctx.moveTo(x, y + attrs.radius);
             ctx.beginPath();
-            ctx.arc(attrs.x, attrs.y, attrs.radius, 0, Math.PI * 2, false);
+            ctx.arc(x, y, attrs.radius, 0, Math.PI * 2, false);
             ctx.closePath();
             ctx.stroke();
             ctx.fill();

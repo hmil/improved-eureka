@@ -57,6 +57,8 @@ export class AnimationManager {
         this.isRunning = true;
     }
 
+    private animationsToFinish: Array<() => void> = [];
+
     private animFrame = () => {
         const now = Date.now();
         if (this.animations.length === 0) {
@@ -64,28 +66,24 @@ export class AnimationManager {
             return;
         }
 
-        const toFinish: Array<() => void> = [];
+        this.animationsToFinish.length = 0;
 
-        const nextAnimations: AnimationDescriptor[] = [];
-        this.animations.forEach(anim => {
+        for (let i = this.animations.length - 1 ; i >= 0 ; i--) {
+            const anim = this.animations[i];
             let time = now - anim.startTime;
             if (anim.durationMs > 0 && time > anim.durationMs) {
+                this.animations.splice(i, 1);
                 time = anim.durationMs;
                 if (anim.onFinished != null) {
-                    toFinish.push(anim.onFinished);
+                    this.animationsToFinish.push(anim.onFinished);
                 }
-            } else {
-                nextAnimations.push(anim);
             }
             anim.cb(time);
-        });
-        this.animations = nextAnimations;
+        }
 
         requestAnimationFrame(this.animFrame);
         this.listener.onAnimationFrame();
 
-        for (const cb of toFinish) {
-            cb();
-        }
+        this.animationsToFinish.forEach(cb => cb());
     };
 }
